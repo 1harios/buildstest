@@ -1,156 +1,77 @@
-import { Button, Frog } from 'frog'
-import { handle } from 'frog/vercel'
-import { Box, Image, VStack, vars } from "../lib/ui.js";
-import { randomInt } from 'crypto';
+import { Button, Frog } from 'frog';
+import axios from 'axios';
+import React, { useState, useEffect } from 'react';
 
-// Uncomment this packages to tested on local server
-// import { devtools } from 'frog/dev';
-// import { serveStatic } from 'frog/serve-static';
+export const app = new Frog();
 
-const baseUrl = "https://warpcast.com/~/compose";
-const text = "👷 Find out what kind of JustBuilder you are\n▶️ Press start.\nJoin the community - /justbuild \n\n✏️ Frame by @harios";
-const embedUrl = "https://justbuild-byharios.vercel.app/api/frame";
+const FrameComponent = () => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [wallet, setWallet] = useState(null);
+  const [avatar, setAvatar] = useState(null);
 
-const BROWSER_LOCATION = `${baseUrl}?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(embedUrl)}`;
+  const fetchWallet = async () => {
+    const warpcastApiUrl = 'https://api.warpcast.com/v2/user-by-username?username=your_username';
+    try {
+      const response = await axios.get(warpcastApiUrl);
+      const user = response.data.result.user;
+      const fid = user.fid;
+      setAvatar(user.pfp.url);
+      const addressResponse = await axios.get(`https://api.warpcast.com/v2/verifications?fid=${fid}`);
+      const walletAddress = addressResponse.data.result.verifications[0].address;
+      setWallet(walletAddress);
+    } catch (err) {
+      setError('Error fetching wallet from WarpCast');
+      console.error(err);
+    }
+  };
 
-export const app = new Frog({
-  assetsPath: '/',
-  basePath: '/api/frame',
-  imageAspectRatio: '1:1',
-  imageOptions: {
-    height: 1024,
-    width: 1024,
-  },
-  ui: { vars },
-  browserLocation: BROWSER_LOCATION
-})
+  const fetchData = async () => {
+    if (!wallet) {
+      setError('Wallet address is not defined');
+      return;
+    }
 
-// Array of image URLs with aspect ratio 1.22:1
-const images = [
-  { id: '1', url: '/images/img1.png' },
-  { id: '2', url: '/images/img2.png' },
-  { id: '3', url: '/images/img3.png' },
-  { id: '4', url: '/images/img4.png' },
-  { id: '5', url: '/images/img5.png' },
-  { id: '6', url: '/images/img6.png' },
-  { id: '7', url: '/images/img7.png' },
-  { id: '8', url: '/images/img8.png' },
-  { id: '9', url: '/images/img9.png' },
-  { id: '10', url: '/images/img10.png' },
-  { id: '11', url: '/images/img11.png' },
-  { id: '12', url: '/images/img12.png' },
-  { id: '13', url: '/images/img13.png' },
-  { id: '14', url: '/images/img14.png' },
-  { id: '15', url: '/images/img15.png' },
-  { id: '16', url: '/images/img16.png' },
-  { id: '17', url: '/images/img17.png' },
-  { id: '18', url: '/images/img18.png' },
-  { id: '19', url: '/images/img19.png' },
-  { id: '20', url: '/images/img20.png' },
-  { id: '21', url: '/images/img21.png' },
-  { id: '22', url: '/images/img22.png' },
-  { id: '23', url: '/images/img23.png' },
-  { id: '24', url: '/images/img24.png' },
-  { id: '25', url: '/images/img25.png' },
-  { id: '26', url: '/images/img26.png' },
-  { id: '27', url: '/images/img27.png' },
-];
+    const apiUrl = `https://build.top/api/stats?wallet=${wallet}`;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await axios.get(apiUrl);
+      setData(response.data);
+    } catch (err) {
+      setError('Error fetching data from Build API');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWallet();
+  }, []);
+
+  return (
+    <div style={{ color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 20 }}>
+      <Button onClick={fetchData}>Fetch Data</Button>
+      {loading && <div>Loading...</div>}
+      {error && <div>Error: {error}</div>}
+      {data && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <img src={avatar} alt="Avatar" style={{ borderRadius: '50%', width: 100, height: 100 }} />
+          <div>Build Score: {data.build_score}</div>
+          <div>Build Budget: {data.build_budget}</div>
+          <div>Nominations Received: {data.nominations_received}</div>
+          <div>Nominations Given: {data.nominations_given}</div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 app.frame('/', (c) => {
   return c.res({
-    title: 'JustBuilder',
-    image: '/Main.gif',
-    intents: [
-      <Button action="/button-pressed">▶️ START ◀️</Button>,
-    ],
-  })
-});
-
-app.frame('/button-pressed', (c) => {
-  const randomIndex = randomInt(images.length);
-  const selectedImage = images[randomIndex];
-
-  const baseUrl = "https://warpcast.com/~/compose";
-  const text = ">👷 Find out what kind of JustBuilder you are\n▶️ Press start.\nJoin the community - /justbuild \n\n✏️ Frame by @harios";
-const embedUrlByUser = `https://justbuild-byharios.vercel.app/api/frame/shared/${selectedImage.id}`;
-
-  const SHARE_BY_USER = `${baseUrl}?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(embedUrlByUser)}`;
-
-  return c.res({
-    title: 'Just Build',
-    image: (
-      <Box
-        grow
-        alignVertical="center"
-        backgroundColor="black"
-        height="100%"
-      >
-        <VStack gap="4">
-          <Box
-            grow
-            alignVertical="center"
-            backgroundColor="white"
-            padding="40"
-            height="100%"
-          >
-            <Image
-              height="100%"
-              width="100%"
-              objectFit="contain"
-              src={selectedImage.url}
-            />
-          </Box>
-        </VStack>
-      </Box>
-    ),
-    intents: [
-      <Button action="/">🔄 Try again</Button>,
-      <Button.Link href={SHARE_BY_USER}>↪️ Share</Button.Link>,
-    ],
+    image: <FrameComponent />,
   });
 });
-
-app.frame('/shared/:imageId', (c) => {
-  const imageId = c.req.param('imageId');
-  const selectedImage = images.find(img => img.id === imageId)?.url || '/Main.gif';
-
-  return c.res({
-    title: 'Just Build',
-    image: (
-      <Box
-        grow
-        alignVertical="center"
-        backgroundColor="black"
-        height="100%"
-      >
-        <VStack gap="4">
-          <Box
-            grow
-            alignVertical="center"
-            backgroundColor="white"
-            padding="40"
-            height="100%"
-          >
-            <Image
-              height="100%"
-              width="100%"
-              objectFit="contain"
-              src={selectedImage}
-            />
-          </Box>
-        </VStack>
-      </Box>
-    ),
-    intents: [
-      <Button action="/">🔄 Try again</Button>,
-      <Button.Link href={BROWSER_LOCATION}>↪️ Share</Button.Link>,
-    ],
-  });
-});
-
-
-// Uncomment this line code to tested on local server
-// devtools(app, { serveStatic });
-
-export const GET = handle(app)
-export const POST = handle(app)
